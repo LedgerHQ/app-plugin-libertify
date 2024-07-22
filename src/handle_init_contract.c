@@ -22,11 +22,12 @@ void handle_init_contract(ethPluginInitContract_t *msg) {
     // Initialize the context (to 0).
     memset(context, 0, sizeof(*context));
 
-    uint32_t selector = U4BE(msg->selector, 0);
-    if (!find_selector(selector, LIBERTIFY_SELECTORS, NUM_SELECTORS, &context->selectorIndex)) {
+    size_t index;
+    if (!find_selector(U4BE(msg->selector, 0), LIBERTIFY_SELECTORS, NUM_SELECTORS, &index)) {
         msg->result = ETH_PLUGIN_RESULT_UNAVAILABLE;
         return;
     }
+    context->selectorIndex = index;
 
     // Set `next_param` to be the first field we expect to parse.
     switch (context->selectorIndex) {
