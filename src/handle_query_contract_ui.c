@@ -1,20 +1,22 @@
+#include <stdbool.h>
 #include "libertify_plugin.h"
 
-static void set_deposit_send_ui(ethQueryContractUI_t *msg, const context_t *context) {
-    strlcpy(msg->title, "Send", msg->titleLength);
+static bool set_deposit_send_ui(ethQueryContractUI_t *msg, const context_t *context) {
+    bool ret = false;
 
+    strlcpy(msg->title, "Send", msg->titleLength);
     if (ADDRESS_IS_NETWORK_TOKEN(context->token_sent)) {
-        const uint8_t *eth_amount = msg->pluginSharedRO->txContent->value.value;
-        uint8_t eth_amount_size = msg->pluginSharedRO->txContent->value.length;
+        const uint8_t *eth_amount = msg->txContent->value.value;
+        uint8_t eth_amount_size = msg->txContent->value.length;
 
         // Converts the uint256 number located in `eth_amount` to its string representation and
         // copies this to `msg->msg`.
-        amountToString(eth_amount,
-                       eth_amount_size,
-                       WEI_TO_ETHER,
-                       msg->network_ticker,
-                       msg->msg,
-                       msg->msgLength);
+        ret = amountToString(eth_amount,
+                             eth_amount_size,
+                             WEI_TO_ETHER,
+                             msg->network_ticker,
+                             msg->msg,
+                             msg->msgLength);
     } else {
         uint8_t decimals = context->decimals;
         const char *ticker = context->ticker;
@@ -26,21 +28,23 @@ static void set_deposit_send_ui(ethQueryContractUI_t *msg, const context_t *cont
             ticker = msg->network_ticker;
         }
 
-        amountToString(context->amount_sent,
-                       sizeof(context->amount_sent),
-                       decimals,
-                       ticker,
-                       msg->msg,
-                       msg->msgLength);
+        ret = amountToString(context->amount_sent,
+                             sizeof(context->amount_sent),
+                             decimals,
+                             ticker,
+                             msg->msg,
+                             msg->msgLength);
     }
+    return ret;
 }
 
-static void set_deposit_vault_ui(ethQueryContractUI_t *msg, const context_t *context) {
+static bool set_deposit_vault_ui(ethQueryContractUI_t *msg, const context_t *context) {
     strlcpy(msg->title, "Vault", msg->titleLength);
     strlcpy(msg->msg, context->vault_symbol, context->vault_symbol_length + 1);
+    return true;
 }
 
-static void set_withdraw_send_ui(ethQueryContractUI_t *msg, const context_t *context) {
+static bool set_withdraw_send_ui(ethQueryContractUI_t *msg, const context_t *context) {
     strlcpy(msg->title, "Send", msg->titleLength);
 
     uint8_t decimals = context->decimals;
@@ -50,15 +54,15 @@ static void set_withdraw_send_ui(ethQueryContractUI_t *msg, const context_t *con
         decimals = WEI_TO_ETHER;
     }
 
-    amountToString(context->amount_sent,
-                   sizeof(context->amount_sent),
-                   decimals,
-                   context->vault_symbol,
-                   msg->msg,
-                   msg->msgLength);
+    return amountToString(context->amount_sent,
+                          sizeof(context->amount_sent),
+                          decimals,
+                          context->vault_symbol,
+                          msg->msg,
+                          msg->msgLength);
 }
 
-static void set_withdraw_receive_ui(ethQueryContractUI_t *msg, const context_t *context) {
+static bool set_withdraw_receive_ui(ethQueryContractUI_t *msg, const context_t *context) {
     strlcpy(msg->title, "Receive Min", msg->titleLength);
 
     uint8_t decimals = context->decimals;
@@ -70,17 +74,17 @@ static void set_withdraw_receive_ui(ethQueryContractUI_t *msg, const context_t *
         ticker = msg->network_ticker;
     }
 
-    amountToString(context->amount_received,
-                   sizeof(context->amount_received),
-                   decimals,
-                   ticker,
-                   msg->msg,
-                   msg->msgLength);
+    return amountToString(context->amount_received,
+                          sizeof(context->amount_received),
+                          decimals,
+                          ticker,
+                          msg->msg,
+                          msg->msgLength);
 }
 
-void handle_query_contract_ui(void *parameters) {
-    ethQueryContractUI_t *msg = (ethQueryContractUI_t *) parameters;
+void handle_query_contract_ui(ethQueryContractUI_t *msg) {
     context_t *context = (context_t *) msg->pluginContext;
+    bool ret = false;
 
     // msg->title is the upper line displayed on the device.
     // msg->msg is the lower line displayed on the device.
@@ -89,35 +93,28 @@ void handle_query_contract_ui(void *parameters) {
     memset(msg->title, 0, msg->titleLength);
     memset(msg->msg, 0, msg->msgLength);
 
-    msg->result = ETH_PLUGIN_RESULT_OK;
-
     if (context->selectorIndex == DEPOSIT) {
         switch (msg->screenIndex) {
             case 0:
-                set_deposit_send_ui(msg, context);
+                ret = set_deposit_send_ui(msg, context);
                 break;
             case 1:
-                set_deposit_vault_ui(msg, context);
+                ret = set_deposit_vault_ui(msg, context);
                 break;
             default:
                 PRINTF("Received an invalid screenIndex\n");
-                msg->result = ETH_PLUGIN_RESULT_ERROR;
-                return;
         }
     } else if (context->selectorIndex == WITHDRAW) {
         switch (msg->screenIndex) {
             case 0:
-                set_withdraw_send_ui(msg, context);
+                ret = set_withdraw_send_ui(msg, context);
                 break;
             case 1:
-                set_withdraw_receive_ui(msg, context);
+                ret = set_withdraw_receive_ui(msg, context);
                 break;
             default:
                 PRINTF("Received an invalid screenIndex\n");
-                msg->result = ETH_PLUGIN_RESULT_ERROR;
-                return;
         }
-    } else {
-        msg->result = ETH_PLUGIN_RESULT_ERROR;
     }
+    msg->result = ret ? ETH_PLUGIN_RESULT_OK : ETH_PLUGIN_RESULT_ERROR;
 }
